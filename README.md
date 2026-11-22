@@ -74,7 +74,7 @@ Android 的 `setPreferredDevice` 只是「偏好」而非「强制」，系统�
 - 开关状态一键切换，响铃前可试听
 - 「设置 → 外观与主题」支持 Material 3 和 Miuix 界面、跟随系统 / 浅色 / 深色 / 纯黑、壁纸取色、预设主题色、调色板与实时预览
 - 可继续使用极光、赛博朋克、安卓原生、动漫、海洋、森林六套经典主题
-- 「设置 → 后台保活」可通过 Shizuku 开启或关闭电池优化豁免
+- 「设置 → 后台保活」支持 Shizuku 强制保活和电池优化豁免
 - 全屏响铃界面：锁屏直接展示，显示音量渐强进度条，提供贪睡与关闭按钮
 - 开机 / 应用更新 / 系统时间或时区变化后自动重排全部闹钟
 - 「使用最大音量」按钮：响铃时用户点按后重新抬升媒体音量（Android 的媒体音量安全保护会监听耳机实际输出分贝并自动压低，App 无法用 API 绕过，只能在用户真实点击后重新抬升）
@@ -86,7 +86,7 @@ Android 的 `setPreferredDevice` 只是「偏好」而非「强制」，系统�
 - **DataStore Preferences** + **kotlinx.serialization** 做轻量持久化（整表 JSON 存储，读多写少，避免引入数据库层）
 - **AlarmManager.setAlarmClock** 精确闹钟，无权限时退化为 `set(RTC_WAKEUP)`
 - **前台服务**（`mediaPlayback` 类型）承载播放与通知，响铃期间持有 `PARTIAL_WAKE_LOCK`
-- **Shizuku API** 负责按需配置电池优化豁免，`Application` 负责管理应用级依赖
+- **Shizuku UserService** 在独立进程监测应用进程退出，并在系统回收应用后恢复前台服务和闹钟排程
 
 ## 项目结构
 
@@ -102,7 +102,7 @@ app/src/main/java/com/headphonealarm/
 │   ├── AlarmRepository.kt       闹钟持久化
 │   ├── AlarmScheduler.kt        AlarmManager 注册 / 取消 / 贪睡
 │   └── SettingsRepository.kt    外观设置持久化
-├── keepalive/                  Shizuku 授权与电池优化豁免
+├── keepalive/                  Shizuku 授权、守护恢复与电池优化豁免
 ├── receiver/
 │   ├── AlarmReceiver.kt         闹钟触发广播
 │   └── BootReceiver.kt          开机 / 更新 / 时间或时区变更后恢复闹钟
@@ -157,10 +157,10 @@ python tools/generate_tones.py
 ### Shizuku 后台保活
 
 1. 安装并启动 Shizuku v12 或更新版本。非 root 设备重启后需重新启动 Shizuku。[Shizuku 使用指南](https://shizuku.rikka.app/guide/setup/)
-2. 打开耳机闹钟，在「设置 → 后台保活」授权 Shizuku，再打开「电池优化豁免」开关。
-3. 关闭同一开关可恢复系统电池优化。也可通过「系统电池设置」手动调整。
+2. 在「设置 → 后台保活」授权 Shizuku，打开「强制保活」，等待状态显示为「守护运行中」。
+3. 可用通知里的「停止保活」或设置中的开关停止守护。「电池优化豁免」可独立设置。
 
-豁免生效后由 Android 保存。若从系统设置强制停止应用，请重新打开耳机闹钟以恢复排程。
+应用进程被系统回收后，Shizuku 守护服务会启动耳机闹钟的前台服务并恢复排程。若在系统中主动停止应用，重新打开耳机闹钟后可恢复守护。Shizuku 停止运行时，守护也会停止。
 
 **关于音量**：Android 的「媒体音量安全 / 降低过大音量」会监听耳机实际输出分贝并自动压低，这是系统级行为，App 无法用 API 绕过。若响铃音量被系统压低，需在系统「声音」设置中关闭该保护。
 

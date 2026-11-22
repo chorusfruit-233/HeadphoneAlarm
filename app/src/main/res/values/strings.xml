@@ -5,4 +5,9 @@
     <string name="channel_alarm_desc">闹钟触发时的全屏提醒与耳机播放</string>
     <string name="channel_service_name">闹钟运行中</string>
     <string name="channel_service_desc">显示正在等待耳机或播放中的闹钟</string>
+    <string name="channel_keep_alive_name">Shizuku 强制保活</string>
+    <string name="channel_keep_alive_description">显示守护服务的运行状态</string>
+    <string name="keep_alive_active">进程被系统回收后会恢复闹钟排程</string>
+    <string name="keep_alive_connecting">正在连接 Shizuku 守护服务…</string>
+    <string name="keep_alive_disable">停止保活</string>
 </resources>

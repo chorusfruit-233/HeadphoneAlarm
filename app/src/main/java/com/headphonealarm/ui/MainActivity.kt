@@ -42,6 +42,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        alarmApp.shizukuKeepAlive.setUiVisible(true)
+    }
+
+    override fun onPause() {
+        alarmApp.shizukuKeepAlive.setUiVisible(false)
+        super.onPause()
+    }
+
     private fun updateAppearance(update: (AppearanceSettings) -> AppearanceSettings) {
         lifecycleScope.launch {
             try {

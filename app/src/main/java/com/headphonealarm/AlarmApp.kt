@@ -30,7 +30,7 @@ class AlarmApp : Application() {
     val alarmOperations: AlarmOperations by lazy { AlarmOperations(this, alarmRepository, alarmScheduler) }
     val headphoneDetector: HeadphoneDetector by lazy { HeadphoneDetector(this) }
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
-    val shizukuKeepAlive: ShizukuKeepAlive by lazy { ShizukuKeepAlive(this) }
+    val shizukuKeepAlive: ShizukuKeepAlive by lazy { ShizukuKeepAlive(this, settingsRepository) }
 
     /** 响铃可在用户立即关闭后销毁；触发记账必须独立于服务的生命周期。 */
     private val accountingScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -121,12 +121,21 @@ class AlarmApp : Application() {
             enableVibration(false)
         }
 
-        manager.createNotificationChannels(listOf(ringChannel, serviceChannel))
+        val keepAliveChannel = NotificationChannel(
+            CHANNEL_KEEP_ALIVE,
+            getString(R.string.channel_keep_alive_name),
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = getString(R.string.channel_keep_alive_description)
+            setShowBadge(false)
+        }
+        manager.createNotificationChannels(listOf(ringChannel, serviceChannel, keepAliveChannel))
     }
 
     companion object {
         const val CHANNEL_RING = "alarm_ring"
         const val CHANNEL_SERVICE = "alarm_service"
+        const val CHANNEL_KEEP_ALIVE = "alarm_keep_alive"
 
         private lateinit var instance: AlarmApp
 

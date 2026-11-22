@@ -2,12 +2,15 @@ package com.headphonealarm.keepalive
 
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.DeadObjectException
 import android.os.IBinder
 import android.util.Log
+import com.headphonealarm.data.SettingsRepository
 import com.headphonealarm.util.AlarmPermissions
+import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -22,26 +25,99 @@ import kotlinx.coroutines.withTimeoutOrNull
 import rikka.shizuku.Shizuku
 
 enum class ShizukuStatus { NOT_RUNNING, OUTDATED, PERMISSION_REQUIRED, PERMISSION_DENIED, READY }
+enum class WatchdogStatus { IDLE, STARTING, ACTIVE, FAILED }
 
 data class KeepAliveState(
     val status: ShizukuStatus = ShizukuStatus.NOT_RUNNING,
     val exempt: Boolean = false,
     val changing: Boolean = false,
-    val failed: Boolean = false
+    val failed: Boolean = false,
+    val keepAliveEnabled: Boolean = false,
+    val savingKeepAlive: Boolean = false,
+    val keepAliveSaveFailed: Boolean = false,
+    val watchdog: WatchdogStatus = WatchdogStatus.IDLE
 )
 
-class ShizukuKeepAlive(private val context: Context) {
+class ShizukuKeepAlive(private val context: Context, private val settings: SettingsRepository) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val mutableState = MutableStateFlow(KeepAliveState())
     val state = mutableState.asStateFlow()
+    private var uiVisible = false
 
     init {
-        Shizuku.addBinderReceivedListenerSticky { refresh() }
+        Shizuku.addBinderReceivedListenerSticky {
+            refresh()
+            startWatchdogIfRequested()
+        }
         Shizuku.addBinderDeadListener { refresh() }
         Shizuku.addRequestPermissionResultListener { requestCode, _ ->
-            if (requestCode == REQUEST_PERMISSION) refresh()
+            if (requestCode == REQUEST_PERMISSION) {
+                refresh()
+                startWatchdogIfRequested()
+            }
         }
         refresh()
+        scope.launch {
+            try {
+                settings.keepAliveEnabled.collect { enabled ->
+                    mutableState.update { it.copy(keepAliveEnabled = enabled) }
+                    startWatchdogIfRequested()
+                }
+            } catch (error: IOException) {
+                Log.w(TAG, "Could not read keep-alive settings", error)
+                mutableState.update { it.copy(keepAliveSaveFailed = true) }
+            }
+        }
+    }
+
+    fun setUiVisible(visible: Boolean) {
+        uiVisible = visible
+        if (visible) {
+            refresh()
+            startWatchdogIfRequested()
+        }
+    }
+
+    fun setKeepAliveEnabled(enabled: Boolean) {
+        val current = state.value
+        if (current.savingKeepAlive || (enabled && current.status != ShizukuStatus.READY)) return
+        mutableState.update { it.copy(savingKeepAlive = true, keepAliveSaveFailed = false) }
+        scope.launch {
+            try {
+                settings.setKeepAliveEnabled(enabled)
+                mutableState.update { it.copy(keepAliveEnabled = enabled) }
+                if (!enabled) {
+                    context.stopService(Intent(context, AlarmKeepAliveService::class.java))
+                    updateWatchdog(WatchdogStatus.IDLE)
+                }
+            } catch (error: IOException) {
+                Log.w(TAG, "Could not save keep-alive settings", error)
+                mutableState.update { it.copy(keepAliveSaveFailed = true) }
+            } finally {
+                mutableState.update { it.copy(savingKeepAlive = false) }
+            }
+            if (enabled) startWatchdogIfRequested()
+        }
+    }
+
+    fun startWatchdogIfRequested() {
+        val current = state.value
+        if (!uiVisible || !current.keepAliveEnabled || current.savingKeepAlive ||
+            current.status != ShizukuStatus.READY ||
+            current.watchdog == WatchdogStatus.STARTING || current.watchdog == WatchdogStatus.ACTIVE
+        ) return
+
+        updateWatchdog(WatchdogStatus.STARTING)
+        try {
+            AlarmKeepAliveService.start(context)
+        } catch (error: RuntimeException) {
+            Log.w(TAG, "Could not start the keep-alive foreground service", error)
+            updateWatchdog(WatchdogStatus.FAILED)
+        }
+    }
+
+    internal fun updateWatchdog(status: WatchdogStatus) {
+        mutableState.update { it.copy(watchdog = status) }
     }
 
     fun refresh() {

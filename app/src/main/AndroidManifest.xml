@@ -17,6 +17,7 @@
     <!-- 前台服务播放音频 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- 通知 / 全屏闹钟界面 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
@@ -72,6 +73,20 @@
             android:name=".service.AlarmRingService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Shizuku's shell/root identity can recover the service. Ordinary apps cannot start it. -->
+        <service
+            android:name=".keepalive.AlarmKeepAliveService"
+            android:exported="true"
+            android:foregroundServiceType="specialUse"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="com.headphonealarm.action.RECOVER_KEEP_ALIVE" />
+            </intent-filter>
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-enabled Shizuku monitoring and recovery of the alarm scheduler" />
+        </service>
 
         <receiver
             android:name=".receiver.AlarmReceiver"

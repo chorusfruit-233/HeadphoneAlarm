@@ -30,6 +30,7 @@ import com.headphonealarm.data.AppearanceSettings
 import com.headphonealarm.data.InterfaceStyle
 import com.headphonealarm.keepalive.ShizukuKeepAlive
 import com.headphonealarm.keepalive.ShizukuStatus
+import com.headphonealarm.keepalive.WatchdogStatus
 import com.headphonealarm.ui.components.GlassCard
 import com.headphonealarm.ui.theme.LocalInterfaceStyle
 import com.headphonealarm.util.AlarmPermissions
@@ -78,6 +79,14 @@ private fun KeepAliveSettings(keepAlive: ShizukuKeepAlive) {
         ShizukuStatus.READY -> "Shizuku 已授权"
     }
     val canChange = state.status == ShizukuStatus.READY && !state.changing
+    val watchdogStatus = when {
+        state.savingKeepAlive -> "正在保存…"
+        !state.keepAliveEnabled -> "已关闭"
+        state.status != ShizukuStatus.READY -> "等待 Shizuku 连接"
+        state.watchdog == WatchdogStatus.ACTIVE -> "守护运行中"
+        state.watchdog == WatchdogStatus.STARTING -> "正在启动守护…"
+        else -> "守护未运行"
+    }
     val exemptionStatus = when {
         state.changing -> "正在应用…"
         state.exempt -> "已豁免"
@@ -88,34 +97,36 @@ private fun KeepAliveSettings(keepAlive: ShizukuKeepAlive) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(shizukuStatus, style = MaterialTheme.typography.titleMedium)
             Text(
-                "豁免电池优化可减少系统省电对闹钟后台唤醒的影响。",
+                "应用进程被系统回收后，守护服务会恢复后台运行和闹钟排程。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            if (LocalInterfaceStyle.current == InterfaceStyle.MIUIX) {
-                SuperSwitch(
-                    checked = state.exempt,
-                    onCheckedChange = keepAlive::setExempt,
-                    title = "电池优化豁免",
-                    summary = exemptionStatus,
-                    insideMargin = PaddingValues(vertical = 10.dp),
-                    enabled = canChange
-                )
-            } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth()
-                        .toggleable(state.exempt, enabled = canChange, role = Role.Switch, onValueChange = keepAlive::setExempt)
-                        .padding(vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("电池优化豁免", style = MaterialTheme.typography.bodyLarge)
-                        Text(exemptionStatus, style = MaterialTheme.typography.bodySmall)
-                    }
-                    Switch(checked = state.exempt, onCheckedChange = null, enabled = canChange)
-                }
+            KeepAliveSwitch(
+                title = "强制保活",
+                summary = watchdogStatus,
+                checked = state.keepAliveEnabled,
+                enabled = !state.savingKeepAlive && (state.keepAliveEnabled || state.status == ShizukuStatus.READY),
+                onChange = keepAlive::setKeepAliveEnabled
+            )
+            if (state.keepAliveEnabled && state.status == ShizukuStatus.READY &&
+                state.watchdog in listOf(WatchdogStatus.IDLE, WatchdogStatus.FAILED)
+            ) {
+                TextButton(onClick = keepAlive::startWatchdogIfRequested) { Text("重试守护") }
             }
+            if (state.keepAliveSaveFailed) {
+                Text(
+                    "无法读取或保存保活设置，请重试。",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            KeepAliveSwitch(
+                title = "电池优化豁免",
+                summary = exemptionStatus,
+                checked = state.exempt,
+                enabled = canChange,
+                onChange = keepAlive::setExempt
+            )
             if (state.failed) {
                 Text(
                     "系统未应用此次更改，请重试或在系统设置中调整。",
@@ -140,6 +151,40 @@ private fun KeepAliveSettings(keepAlive: ShizukuKeepAlive) {
                     AlarmPermissions.openSettingsSafely(context, intent)
                 }
             ) { Text("系统电池设置") }
+        }
+    }
+}
+
+@Composable
+private fun KeepAliveSwitch(
+    title: String,
+    summary: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onChange: (Boolean) -> Unit
+) {
+    if (LocalInterfaceStyle.current == InterfaceStyle.MIUIX) {
+        SuperSwitch(
+            title = title,
+            summary = summary,
+            checked = checked,
+            enabled = enabled,
+            onCheckedChange = onChange,
+            insideMargin = PaddingValues(vertical = 10.dp)
+        )
+    } else {
+        Row(
+            modifier = Modifier.fillMaxWidth()
+                .toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
+                .padding(vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.bodyLarge)
+                Text(summary, style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked = checked, onCheckedChange = null, enabled = enabled)
         }
     }
 }

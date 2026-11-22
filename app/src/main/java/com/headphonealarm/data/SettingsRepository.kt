@@ -3,6 +3,7 @@ package com.headphonealarm.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
@@ -13,12 +14,21 @@ import com.materialkolor.dynamiccolor.ColorSpec
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings_store")
 
 /** 应用级设置持久化。 */
 class SettingsRepository(private val context: Context) {
+
+    val keepAliveEnabled: Flow<Boolean> = context.settingsDataStore.data
+        .map { it[KEY_KEEP_ALIVE] ?: false }
+        .distinctUntilChanged()
+
+    suspend fun setKeepAliveEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[KEY_KEEP_ALIVE] = enabled }
+    }
 
     val appearance: Flow<AppearanceSettings> = context.settingsDataStore.data
         .catch { error ->
@@ -63,5 +73,6 @@ class SettingsRepository(private val context: Context) {
         val KEY_ACCENT = intPreferencesKey("accent_color")
         val KEY_PALETTE = stringPreferencesKey("palette_style")
         val KEY_SPEC = stringPreferencesKey("color_spec")
+        val KEY_KEEP_ALIVE = booleanPreferencesKey("shizuku_keep_alive")
     }
 }
