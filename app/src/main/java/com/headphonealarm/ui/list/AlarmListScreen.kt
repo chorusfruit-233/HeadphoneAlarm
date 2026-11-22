@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Speaker
 import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material.icons.outlined.Timer
@@ -72,11 +73,6 @@ import com.headphonealarm.data.NoHeadphoneAction
 import com.headphonealarm.ui.components.GlassCard
 import com.headphonealarm.ui.components.SectionTitle
 import com.headphonealarm.ui.components.StatusPill
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import com.headphonealarm.ui.theme.AppTheme
 import kotlinx.coroutines.flow.map
 import com.headphonealarm.util.AlarmPermissions
 import com.headphonealarm.util.TimeUtils
@@ -102,6 +98,7 @@ import java.util.Calendar
 fun AlarmListScreen(
     onAddAlarm: () -> Unit,
     onEditAlarm: (Long) -> Unit,
+    onOpenSettings: () -> Unit,
     viewModel: AlarmListViewModel = viewModel()
 ) {
     val context = LocalContext.current
@@ -109,7 +106,6 @@ fun AlarmListScreen(
     val alarms = (alarmState as? AlarmLoadState.Ready)?.alarms.orEmpty()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val failedScheduleIds by viewModel.failedScheduleIds.collectAsStateWithLifecycle()
-    val theme by viewModel.theme.collectAsStateWithLifecycle()
     val now = rememberTickingNow()
     val headphone = rememberHeadphoneConnected()
     val deviceSummary = rememberAudioOutputSummary()
@@ -178,7 +174,7 @@ fun AlarmListScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            item { Header(headphone, deviceSummary) }
+            item { Header(headphone, deviceSummary, onOpenSettings) }
 
             when (val current = alarmState) {
                 is AlarmLoadState.Ready -> item {
@@ -277,9 +273,6 @@ fun AlarmListScreen(
                 item { EmptyState() }
             }
 
-            item { Spacer(Modifier.height(8.dp)) }
-            item { SectionTitle("外观主题") }
-            item { ThemePickerCard(current = theme, onSelect = viewModel::selectTheme) }
             if (loaded) {
                 item {
                     FooterHint(
@@ -295,14 +288,20 @@ fun AlarmListScreen(
 }
 
 @Composable
-private fun Header(headphoneConnected: Boolean, deviceSummary: String) {
+private fun Header(headphoneConnected: Boolean, deviceSummary: String, onOpenSettings: () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "闹钟",
-            style = MaterialTheme.typography.displayLarge.copy(fontSize = 44.sp),
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.Bold
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "闹钟",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.displayLarge.copy(fontSize = 44.sp),
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold
+            )
+            IconButton(onClick = onOpenSettings) {
+                Icon(Icons.Outlined.Settings, contentDescription = "设置", tint = MaterialTheme.colorScheme.onSurface)
+            }
+        }
         Spacer(Modifier.height(6.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -477,49 +476,6 @@ private fun AlarmCard(
                         uncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.13f)
                     )
                 )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun ThemePickerCard(current: AppTheme, onSelect: (AppTheme) -> Unit) {
-    GlassCard {
-        Text(
-            "选择界面风格，立即生效并自动保存",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(12.dp))
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            AppTheme.entries.forEach { t ->
-                val active = t == current
-                Box(
-                    Modifier
-                        .clip(CircleShape)
-                        .background(
-                            if (active) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.067f)
-                        )
-                        .border(
-                            1.dp,
-                            MaterialTheme.colorScheme.outline.copy(alpha = if (active) 0.6f else 0.25f),
-                            CircleShape
-                        )
-                        .clickable { onSelect(t) }
-                        .padding(horizontal = 14.dp, vertical = 9.dp)
-                ) {
-                    Text(
-                        t.label,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = if (active) MaterialTheme.colorScheme.onPrimary
-                        else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
         }
     }
@@ -810,16 +766,6 @@ class AlarmListViewModel(application: Application) : AndroidViewModel(applicatio
     private val app = AlarmApp.from(application)
     private val repository = app.alarmRepository
     private val operations = app.alarmOperations
-    private val settings = app.settingsRepository
-
-    /** 当前界面主题，供选择器高亮；改后 DataStore 驱动全局重组 */
-    val theme: StateFlow<AppTheme> = settings.themeKey
-        .map { AppTheme.fromKey(it) }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, AppTheme.DEFAULT)
-
-    fun selectTheme(target: AppTheme) {
-        viewModelScope.launch { settings.setThemeKey(target.key) }
-    }
 
     private var previewPlayer: HeadphoneAlarmPlayer? = null
     private var previewJob: Job? = null

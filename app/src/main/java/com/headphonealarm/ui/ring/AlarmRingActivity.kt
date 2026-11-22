@@ -62,7 +62,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.headphonealarm.alarmApp
 import com.headphonealarm.service.AlarmRingService
-import com.headphonealarm.ui.theme.AppTheme
+import com.headphonealarm.data.AppearanceSettings
 import com.headphonealarm.ui.theme.HeadphoneAlarmTheme
 import com.headphonealarm.ui.theme.LocalAppBackdrop
 import kotlinx.coroutines.delay
@@ -78,8 +78,8 @@ class AlarmRingActivity : ComponentActivity() {
         showOverLockScreen()
 
         setContent {
-            val themeKey by alarmApp.settingsRepository.themeKey.collectAsStateWithLifecycle(AppTheme.DEFAULT.key)
-            HeadphoneAlarmTheme(theme = AppTheme.fromKey(themeKey)) {
+            val appearance by alarmApp.settingsRepository.appearance.collectAsStateWithLifecycle(AppearanceSettings())
+            HeadphoneAlarmTheme(appearance = appearance) {
                 val ringState by AlarmRingService.state.collectAsStateWithLifecycle()
                 val backdrop = LocalAppBackdrop.current
                 var hasShownRing by remember { mutableStateOf(false) }

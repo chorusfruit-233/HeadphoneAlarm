@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Android-3DDC84.svg)](https://developer.android.com)
 [![minSdk](https://img.shields.io/badge/minSdk-26-orange.svg)](https://developer.android.com)
-[![Kotlin](https://img.shields.io/badge/Kotlin-1.9-7F52FF.svg)](https://kotlinlang.org)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.2-7F52FF.svg)](https://kotlinlang.org)
 [![Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4.svg)](https://developer.android.com/jetpack/compose)
 
 ---
@@ -72,19 +72,21 @@ Android 的 `setPreferredDevice` 只是「偏好」而非「强制」，系统�
 - 自定义铃声导入：通过 SAF 选择音频，立即复制到应用私有目录，规避 `content://` 授权失效与云盘文件不可随机读取两类播放失败
 - 贪睡时长、响铃自动超时关闭（超时自动停止，避免无人处理时长时间响铃）
 - 开关状态一键切换，响铃前可试听
-- 6 套主题：极光、赛博朋克、安卓原生、动漫、海洋、森林，每套含独立配色与背景画布（渐变 / 光斑 / 装饰动画）
+- 「设置 → 外观与主题」支持 Material 3 和 Miuix 界面、跟随系统 / 浅色 / 深色 / 纯黑、壁纸取色、预设主题色、调色板与实时预览
+- 可继续使用极光、赛博朋克、安卓原生、动漫、海洋、森林六套经典主题
+- 「设置 → 后台保活」可通过 Shizuku 开启或关闭电池优化豁免
 - 全屏响铃界面：锁屏直接展示，显示音量渐强进度条，提供贪睡与关闭按钮
 - 开机 / 应用更新 / 系统时间或时区变化后自动重排全部闹钟
 - 「使用最大音量」按钮：响铃时用户点按后重新抬升媒体音量（Android 的媒体音量安全保护会监听耳机实际输出分贝并自动压低，App 无法用 API 绕过，只能在用户真实点击后重新抬升）
 
 ## 技术栈
 
-- **Kotlin 1.9.24** + **Jetpack Compose**（Material 3，BOM 2024.06.00）
+- **Kotlin 2.2.21** + **Jetpack Compose**（BOM 2025.10.01、Material 3、Miuix 和 MaterialKolor）
 - **Navigation Compose** 单 Activity 架构
 - **DataStore Preferences** + **kotlinx.serialization** 做轻量持久化（整表 JSON 存储，读多写少，避免引入数据库层）
 - **AlarmManager.setAlarmClock** 精确闹钟，无权限时退化为 `set(RTC_WAKEUP)`
 - **前台服务**（`mediaPlayback` 类型）承载播放与通知，响铃期间持有 `PARTIAL_WAKE_LOCK`
-- 无第三方 UI 库、无 DI 框架，`Application` 作为轻量依赖容器
+- **Shizuku API** 负责按需配置电池优化豁免，`Application` 负责管理应用级依赖
 
 ## 项目结构
 
@@ -99,7 +101,8 @@ app/src/main/java/com/headphonealarm/
 │   ├── AlarmItem.kt             闹钟数据模型与下一次触发时间计算
 │   ├── AlarmRepository.kt       闹钟持久化
 │   ├── AlarmScheduler.kt        AlarmManager 注册 / 取消 / 贪睡
-│   └── SettingsRepository.kt    应用设置（主题）
+│   └── SettingsRepository.kt    外观设置持久化
+├── keepalive/                  Shizuku 授权与电池优化豁免
 ├── receiver/
 │   ├── AlarmReceiver.kt         闹钟触发广播
 │   └── BootReceiver.kt          开机 / 更新 / 时间或时区变更后恢复闹钟
@@ -110,17 +113,18 @@ app/src/main/java/com/headphonealarm/
 │   ├── list/                    闹钟列表
 │   ├── edit/                    闹钟编辑
 │   ├── ring/                    全屏响铃界面
-│   ├── components/              滚轮选择器、玻璃卡片等自绘组件
-│   └── theme/                   6 套主题与背景画布
+│   ├── settings/                外观与主题、后台保活
+│   ├── components/              滚轮选择器和应用卡片
+│   └── theme/                   主题、调色板与经典背景画布
 └── util/                        权限引导、铃声导入、时间工具
 ```
 
 ## 构建
 
-环境要求：JDK 17、Android SDK（compileSdk 34）。
+使用 JDK 17、Android SDK Platform 36 和 Build Tools 35.0.0。项目自带 Gradle 8.13 Wrapper。
 
 ```bash
-git clone https://github.com/2169818893/HeadphoneAlarm.git
+git clone https://github.com/chorusfruit-233/HeadphoneAlarm.git
 cd HeadphoneAlarm
 
 # 指定 SDK 路径（该文件不入库）
@@ -132,6 +136,8 @@ echo "sdk.dir=/path/to/Android/Sdk" > local.properties
 # 构建 Release 包
 ./gradlew :app:assembleRelease
 ```
+
+Release APK 位于 `app/build/outputs/apk/release/app-release.apk`，使用当前构建环境的 Debug 签名。覆盖安装需要与已有 APK 的签名一致。
 
 如需重新生成内置铃声：
 
@@ -148,13 +154,21 @@ python tools/generate_tones.py
 - **全屏通知**（Android 14+）：`USE_FULL_SCREEN_INTENT`，用于锁屏弹出响铃界面
 - **关闭电池优化**：国内定制 ROM（MIUI / HyperOS / EMUI / ColorOS 等）在电池优化开启时会限制后台唤醒，可能延迟甚至拦截闹钟。小米机型还需在应用详情页额外放开自启动与省电策略
 
+### Shizuku 后台保活
+
+1. 安装并启动 Shizuku v12 或更新版本。非 root 设备重启后需重新启动 Shizuku。[Shizuku 使用指南](https://shizuku.rikka.app/guide/setup/)
+2. 打开耳机闹钟，在「设置 → 后台保活」授权 Shizuku，再打开「电池优化豁免」开关。
+3. 关闭同一开关可恢复系统电池优化。也可通过「系统电池设置」手动调整。
+
+豁免生效后由 Android 保存。若从系统设置强制停止应用，请重新打开耳机闹钟以恢复排程。
+
 **关于音量**：Android 的「媒体音量安全 / 降低过大音量」会监听耳机实际输出分贝并自动压低，这是系统级行为，App 无法用 API 绕过。若响铃音量被系统压低，需在系统「声音」设置中关闭该保护。
 
 ## 已知限制
 
 - 仅在 Android 8.0（API 26）及以上可用
 - 仅耳机模式的防外放依赖系统如实上报音频路由；部分设备/ROM 可能上报不准，请在实际设备上测试，并为重要日程设置备用闹钟。用户显式选择“允许外放”时可通过扬声器响铃
-- 应用使用测试签名构建，仅供自行编译安装，不提供应用商店分发
+- GitHub Release 使用 Debug 签名，适合侧载测试
 
 ## AI 生成声明
 
@@ -174,3 +188,5 @@ python tools/generate_tones.py
 ## 许可证
 
 基于 [Apache License 2.0](LICENSE) 开源，详见 [NOTICE](NOTICE)。
+
+外观与主题设置的交互参考 KernelSU Manager，并通过 Miuix 和 MaterialKolor 在耳机闹钟中实现。[KernelSU Manager](https://github.com/tiann/KernelSU/tree/2a60b2893b8d0d885d1ceff2287d8ad854f0e0f4/manager/app/src/main/java/me/weishu/kernelsu/ui/theme) [Miuix](https://github.com/compose-miuix-ui/miuix) [MaterialKolor](https://github.com/jordond/MaterialKolor)

@@ -5,28 +5,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-
-/**
- * 主题风格定义：每套主题由「Material3 配色」+「背景画布（渐变/光斑/装饰）」两部分构成。
- *
- * 语义色统一走 MaterialTheme.colorScheme（primary/secondary/onSurface...），
- * 无法用 ColorScheme 表达的渐变、光斑、装饰动画则通过 [AppBackdrop] 经
- * [LocalAppBackdrop] 下发，界面层只依赖抽象、不关心具体是哪套主题。
- */
-enum class AppTheme(val key: String, val label: String) {
-    AURORA("aurora", "极光"),
-    CYBER("cyber", "赛博朋克"),
-    MATERIAL("material", "安卓原生"),
-    ANIME("anime", "动漫"),
-    OCEAN("ocean", "海洋"),
-    FOREST("forest", "森林");
-
-    companion object {
-        /** 默认主题：安卓原生（Material You 浅色） */
-        val DEFAULT = MATERIAL
-        fun fromKey(key: String?): AppTheme = entries.firstOrNull { it.key == key } ?: DEFAULT
-    }
-}
+import com.headphonealarm.data.LegacyTheme
 
 /** 背景装饰类型，控制 AppBackground 是否额外绘制动画层 */
 enum class Decoration { NONE, GRID, BUBBLES, LEAVES, PETALS }
@@ -48,7 +27,7 @@ data class AppBackdrop(
     val isLight: Boolean
 )
 
-val LocalAppBackdrop = staticCompositionLocalOf { backdropFor(AppTheme.DEFAULT) }
+val LocalAppBackdrop = staticCompositionLocalOf { backdropFor(LegacyTheme.MATERIAL) }
 
 // region 各主题画布
 private val AuroraBackdrop = AppBackdrop(
@@ -117,19 +96,19 @@ private val ForestBackdrop = AppBackdrop(
     isLight = false
 )
 
-fun backdropFor(theme: AppTheme): AppBackdrop = when (theme) {
-    AppTheme.AURORA -> AuroraBackdrop
-    AppTheme.CYBER -> CyberBackdrop
-    AppTheme.MATERIAL -> MaterialBackdrop
-    AppTheme.ANIME -> AnimeBackdrop
-    AppTheme.OCEAN -> OceanBackdrop
-    AppTheme.FOREST -> ForestBackdrop
+fun backdropFor(theme: LegacyTheme): AppBackdrop = when (theme) {
+    LegacyTheme.AURORA -> AuroraBackdrop
+    LegacyTheme.CYBER -> CyberBackdrop
+    LegacyTheme.MATERIAL -> MaterialBackdrop
+    LegacyTheme.ANIME -> AnimeBackdrop
+    LegacyTheme.OCEAN -> OceanBackdrop
+    LegacyTheme.FOREST -> ForestBackdrop
 }
 // endregion
 
 // region Material3 配色
-fun colorSchemeFor(theme: AppTheme): ColorScheme = when (theme) {
-    AppTheme.AURORA -> darkColorScheme(
+fun colorSchemeFor(theme: LegacyTheme): ColorScheme = when (theme) {
+    LegacyTheme.AURORA -> darkColorScheme(
         primary = Color(0xFF5EE7DF), onPrimary = Color(0xFF00201E),
         primaryContainer = Color(0xFF10403E), onPrimaryContainer = Color(0xFFB9FFF8),
         secondary = Color(0xFFB490CA), onSecondary = Color(0xFF20142E),
@@ -141,7 +120,7 @@ fun colorSchemeFor(theme: AppTheme): ColorScheme = when (theme) {
         outline = Color(0xFF2A3557), error = Color(0xFFFF6B7A), onError = Color(0xFF3A0009)
     )
 
-    AppTheme.CYBER -> darkColorScheme(
+    LegacyTheme.CYBER -> darkColorScheme(
         primary = Color(0xFF00F2C3), onPrimary = Color(0xFF001A15),
         primaryContainer = Color(0xFF0A3A33), onPrimaryContainer = Color(0xFFB6FFF2),
         secondary = Color(0xFFFF2DF9), onSecondary = Color(0xFF1C0018),
@@ -153,7 +132,7 @@ fun colorSchemeFor(theme: AppTheme): ColorScheme = when (theme) {
         outline = Color(0xFF00F2C3), error = Color(0xFFFF2E63), onError = Color(0xFF1C0011)
     )
 
-    AppTheme.MATERIAL -> lightColorScheme(
+    LegacyTheme.MATERIAL -> lightColorScheme(
         primary = Color(0xFF6750A4), onPrimary = Color(0xFFFFFFFF),
         primaryContainer = Color(0xFFEADDFF), onPrimaryContainer = Color(0xFF21005D),
         secondary = Color(0xFF625B71), onSecondary = Color(0xFFFFFFFF),
@@ -165,7 +144,7 @@ fun colorSchemeFor(theme: AppTheme): ColorScheme = when (theme) {
         outline = Color(0xFF79747E), error = Color(0xFFB3261E), onError = Color(0xFFFFFFFF)
     )
 
-    AppTheme.ANIME -> lightColorScheme(
+    LegacyTheme.ANIME -> lightColorScheme(
         primary = Color(0xFFFF78A8), onPrimary = Color(0xFFFFFFFF),
         primaryContainer = Color(0xFFFFD7E6), onPrimaryContainer = Color(0xFF3E0018),
         secondary = Color(0xFF818CF8), onSecondary = Color(0xFFFFFFFF),
@@ -177,7 +156,7 @@ fun colorSchemeFor(theme: AppTheme): ColorScheme = when (theme) {
         outline = Color(0xFFFFBDD6), error = Color(0xFFFF6B81), onError = Color(0xFFFFFFFF)
     )
 
-    AppTheme.OCEAN -> darkColorScheme(
+    LegacyTheme.OCEAN -> darkColorScheme(
         primary = Color(0xFF35E0C2), onPrimary = Color(0xFF00252E),
         primaryContainer = Color(0xFF0A3F3A), onPrimaryContainer = Color(0xFFB4FFF2),
         secondary = Color(0xFF56A0FF), onSecondary = Color(0xFF04213D),
@@ -189,7 +168,7 @@ fun colorSchemeFor(theme: AppTheme): ColorScheme = when (theme) {
         outline = Color(0xFF123A4A), error = Color(0xFFFF7A8A), onError = Color(0xFF3A0009)
     )
 
-    AppTheme.FOREST -> darkColorScheme(
+    LegacyTheme.FOREST -> darkColorScheme(
         primary = Color(0xFF7EE08F), onPrimary = Color(0xFF06210F),
         primaryContainer = Color(0xFF173A22), onPrimaryContainer = Color(0xFFBDF5C6),
         secondary = Color(0xFFE0B86E), onSecondary = Color(0xFF2A1D05),

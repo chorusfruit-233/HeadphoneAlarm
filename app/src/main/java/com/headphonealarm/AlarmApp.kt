@@ -11,6 +11,7 @@ import com.headphonealarm.data.AlarmRepository
 import com.headphonealarm.data.AlarmOperations
 import com.headphonealarm.data.AlarmScheduler
 import com.headphonealarm.data.SettingsRepository
+import com.headphonealarm.keepalive.ShizukuKeepAlive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Deferred
@@ -29,6 +30,7 @@ class AlarmApp : Application() {
     val alarmOperations: AlarmOperations by lazy { AlarmOperations(this, alarmRepository, alarmScheduler) }
     val headphoneDetector: HeadphoneDetector by lazy { HeadphoneDetector(this) }
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
+    val shizukuKeepAlive: ShizukuKeepAlive by lazy { ShizukuKeepAlive(this) }
 
     /** 响铃可在用户立即关闭后销毁；触发记账必须独立于服务的生命周期。 */
     private val accountingScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)

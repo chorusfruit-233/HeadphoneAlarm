@@ -1,24 +1,31 @@
 package com.headphonealarm.ui
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.headphonealarm.alarmApp
+import com.headphonealarm.data.AppearanceSettings
 import com.headphonealarm.ui.edit.AlarmEditScreen
 import com.headphonealarm.ui.list.AlarmListScreen
+import com.headphonealarm.ui.settings.AppSettingsScreen
+import com.headphonealarm.ui.settings.AppearanceScreen
 import com.headphonealarm.ui.theme.AppBackground
-import com.headphonealarm.ui.theme.AppTheme
 import com.headphonealarm.ui.theme.HeadphoneAlarmTheme
+import java.io.IOException
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -26,12 +33,21 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val settings = remember { alarmApp.settingsRepository }
-            val themeKey by settings.themeKey.collectAsStateWithLifecycle(AppTheme.DEFAULT.key)
-            HeadphoneAlarmTheme(theme = AppTheme.fromKey(themeKey)) {
+            val appearance by alarmApp.settingsRepository.appearance.collectAsStateWithLifecycle(AppearanceSettings())
+            HeadphoneAlarmTheme(appearance = appearance) {
                 AppBackground {
-                    AlarmNavHost()
+                    AlarmNavHost(appearance, ::updateAppearance)
                 }
+            }
+        }
+    }
+
+    private fun updateAppearance(update: (AppearanceSettings) -> AppearanceSettings) {
+        lifecycleScope.launch {
+            try {
+                alarmApp.settingsRepository.updateAppearance(update)
+            } catch (_: IOException) {
+                Toast.makeText(this@MainActivity, "无法保存外观设置，请重试。", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -40,13 +56,20 @@ class MainActivity : ComponentActivity() {
 private object Routes {
     const val LIST = "list"
     const val EDIT = "edit"
+    const val SETTINGS = "settings"
+    const val APPEARANCE = "appearance"
     const val ARG_ID = "alarmId"
     const val NEW_ID = -1L
     fun edit(id: Long) = "$EDIT?$ARG_ID=$id"
 }
 
 @Composable
-private fun AlarmNavHost() {
+private fun AlarmNavHost(
+    appearance: AppearanceSettings,
+    updateAppearance: ((AppearanceSettings) -> AppearanceSettings) -> Unit
+) {
+    val app = LocalContext.current.alarmApp
+    val currentAppearance by rememberUpdatedState(appearance)
     val navController = rememberNavController()
 
     NavHost(navController = navController, startDestination = Routes.LIST) {
@@ -58,7 +81,25 @@ private fun AlarmNavHost() {
                 },
                 onEditAlarm = { id ->
                     navController.navigate(Routes.edit(id)) { launchSingleTop = true }
+                },
+                onOpenSettings = {
+                    navController.navigate(Routes.SETTINGS) { launchSingleTop = true }
                 }
+            )
+        }
+        composable(Routes.SETTINGS) {
+            AppSettingsScreen(
+                appearance = currentAppearance,
+                keepAlive = app.shizukuKeepAlive,
+                onAppearance = { navController.navigate(Routes.APPEARANCE) { launchSingleTop = true } },
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(Routes.APPEARANCE) {
+            AppearanceScreen(
+                appearance = currentAppearance,
+                update = updateAppearance,
+                onBack = { navController.popBackStack() }
             )
         }
         composable(

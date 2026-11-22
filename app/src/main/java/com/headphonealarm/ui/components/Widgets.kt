@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,10 +19,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,23 +36,43 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.headphonealarm.data.AlarmItem
+import com.headphonealarm.data.InterfaceStyle
+import com.headphonealarm.ui.theme.LocalClassicTheme
+import com.headphonealarm.ui.theme.LocalInterfaceStyle
+import top.yukonga.miuix.kmp.basic.Card as MiuixCard
 
-/** 半透明玻璃卡片，统一全应用容器样式 */
+/** 按当前外观绘制应用卡片。经典主题保留半透明叠层。 */
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val shape = RoundedCornerShape(24.dp)
+    val colors = MaterialTheme.colorScheme
+    if (LocalInterfaceStyle.current == InterfaceStyle.MIUIX) {
+        MiuixCard(
+            modifier = modifier.fillMaxWidth(),
+            cornerRadius = 24.dp,
+            insideMargin = PaddingValues(18.dp),
+            onClick = onClick,
+            showIndication = onClick != null
+        ) {
+            CompositionLocalProvider(LocalContentColor provides colors.onSurface) { content() }
+        }
+        return
+    }
+
+    val classic = LocalClassicTheme.current
+    val shape = MaterialTheme.shapes.large
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .clip(shape)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+        color = if (classic) colors.onSurface.copy(alpha = 0.08f) else colors.surfaceContainer,
+        contentColor = colors.onSurface,
         shape = shape,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
+        border = if (classic) BorderStroke(1.dp, colors.outline.copy(alpha = 0.6f)) else null
     ) {
         Column(modifier = Modifier.padding(18.dp), content = content)
     }
