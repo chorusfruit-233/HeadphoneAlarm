@@ -2,10 +2,12 @@ package com.headphonealarm.data
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -38,41 +40,79 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun updateAppearance(update: (AppearanceSettings) -> AppearanceSettings) {
         context.settingsDataStore.edit { preferences ->
-            val appearance = update(preferences.toAppearance())
-            preferences[KEY_INTERFACE] = appearance.interfaceStyle.name
-            preferences[KEY_MODE] = appearance.colorMode.name
-            preferences[KEY_ACCENT_SOURCE] = appearance.accentSource.name
-            preferences[KEY_ACCENT] = appearance.accentColor
-            preferences[KEY_PALETTE] = appearance.paletteStyle.name
-            preferences[KEY_SPEC] = appearance.colorSpec.name
-            val legacy = appearance.legacyTheme
-            if (legacy == null) preferences.remove(KEY_THEME) else preferences[KEY_THEME] = legacy.key
+            preferences.saveAppearance(update(preferences.toAppearance()))
         }
     }
+}
 
-    private fun Preferences.toAppearance() = AppearanceSettings(
-        interfaceStyle = enumSetting(this[KEY_INTERFACE], defaults.interfaceStyle),
+internal fun MutablePreferences.saveAppearance(appearance: AppearanceSettings) {
+    this[KEY_INTERFACE] = appearance.interfaceStyle.name
+    this[KEY_MODE] = appearance.colorMode.name
+    this[KEY_ACCENT_SOURCE] = if (appearance.keyColor == 0) "WALLPAPER" else "CUSTOM"
+    this[KEY_ACCENT] = appearance.keyColor
+    this[KEY_PALETTE] = appearance.paletteStyle.name
+    this[KEY_SPEC] = appearance.colorSpec.name
+    this[KEY_MIUIX_MONET] = appearance.miuixMonet
+    this[KEY_PAGE_SCALE] = appearance.pageScale.coerceIn(0.8f, 1.1f)
+    this[KEY_BLUR] = appearance.enableBlur
+    this[KEY_FLOATING_BAR] = appearance.enableFloatingBottomBar
+    this[KEY_FLOATING_BAR_BLUR] = appearance.enableFloatingBottomBarBlur
+    this[KEY_NAV_BADGE] = appearance.enableNavigationBadge
+    this[KEY_PREDICTIVE_BACK] = appearance.enablePredictiveBack
+    this[KEY_SWIPE_DISMISS] = appearance.enableSwipeDismiss
+    this[KEY_PAGER_MODE] = appearance.pagerInterceptionMode.coerceIn(0, 2)
+    val legacy = appearance.legacyTheme
+    if (legacy == null) remove(KEY_THEME) else this[KEY_THEME] = legacy.key
+}
+
+internal fun Preferences.toAppearance(): AppearanceSettings {
+    val legacy = LegacyTheme.fromKey(this[KEY_THEME])
+    val style = enumSetting(this[KEY_INTERFACE], if (legacy == null) defaults.interfaceStyle else InterfaceStyle.MATERIAL)
+    // v1.1.0/1.1.1 always generated Miuix colors with Monet, even for their “default” seed.
+    val oldMiuix = this[KEY_INTERFACE] == InterfaceStyle.MIUIX.name
+    val seed = when (this[KEY_ACCENT_SOURCE]) {
+        "DEFAULT" -> if (oldMiuix) 0xFF3482FF.toInt() else 0xFF6750A4.toInt()
+        "CUSTOM" -> this[KEY_ACCENT] ?: defaults.keyColor
+        else -> defaults.keyColor
+    }
+    return AppearanceSettings(
+        interfaceStyle = style,
         colorMode = enumSetting(this[KEY_MODE], defaults.colorMode),
-        accentSource = enumSetting(this[KEY_ACCENT_SOURCE], defaults.accentSource),
-        accentColor = this[KEY_ACCENT] ?: defaults.accentColor,
+        keyColor = seed,
         paletteStyle = enumSetting<PaletteStyle>(this[KEY_PALETTE], defaults.paletteStyle),
         colorSpec = enumSetting<ColorSpec.SpecVersion>(this[KEY_SPEC], defaults.colorSpec),
-        legacyTheme = LegacyTheme.fromKey(this[KEY_THEME])
+        legacyTheme = legacy,
+        miuixMonet = this[KEY_MIUIX_MONET] ?: oldMiuix,
+        pageScale = this[KEY_PAGE_SCALE]?.coerceIn(0.8f, 1.1f) ?: defaults.pageScale,
+        enableBlur = this[KEY_BLUR] ?: defaults.enableBlur,
+        enableFloatingBottomBar = this[KEY_FLOATING_BAR] ?: defaults.enableFloatingBottomBar,
+        enableFloatingBottomBarBlur = this[KEY_FLOATING_BAR_BLUR] ?: defaults.enableFloatingBottomBarBlur,
+        enableNavigationBadge = this[KEY_NAV_BADGE] ?: defaults.enableNavigationBadge,
+        enablePredictiveBack = this[KEY_PREDICTIVE_BACK] ?: defaults.enablePredictiveBack,
+        enableSwipeDismiss = this[KEY_SWIPE_DISMISS] ?: defaults.enableSwipeDismiss,
+        pagerInterceptionMode = this[KEY_PAGER_MODE]?.coerceIn(0, 2) ?: defaults.pagerInterceptionMode
     )
-
-    private inline fun <reified T : Enum<T>> enumSetting(value: String?, default: T): T =
-        enumValues<T>().firstOrNull { it.name == value } ?: default
-
-    private companion object {
-        val defaults = AppearanceSettings()
-        // v1.0.x 已保存的主题仍按原样读取。
-        val KEY_THEME = stringPreferencesKey("theme_key")
-        val KEY_INTERFACE = stringPreferencesKey("interface_style")
-        val KEY_MODE = stringPreferencesKey("color_mode")
-        val KEY_ACCENT_SOURCE = stringPreferencesKey("accent_source")
-        val KEY_ACCENT = intPreferencesKey("accent_color")
-        val KEY_PALETTE = stringPreferencesKey("palette_style")
-        val KEY_SPEC = stringPreferencesKey("color_spec")
-        val KEY_KEEP_ALIVE = booleanPreferencesKey("shizuku_keep_alive")
-    }
 }
+
+private inline fun <reified T : Enum<T>> enumSetting(value: String?, default: T): T =
+    enumValues<T>().firstOrNull { it.name == value } ?: default
+
+private val defaults = AppearanceSettings()
+// v1.0.x 已保存的主题仍按原样读取。
+private val KEY_THEME = stringPreferencesKey("theme_key")
+private val KEY_INTERFACE = stringPreferencesKey("interface_style")
+private val KEY_MODE = stringPreferencesKey("color_mode")
+private val KEY_ACCENT_SOURCE = stringPreferencesKey("accent_source")
+private val KEY_ACCENT = intPreferencesKey("accent_color")
+private val KEY_PALETTE = stringPreferencesKey("palette_style")
+private val KEY_SPEC = stringPreferencesKey("color_spec")
+private val KEY_MIUIX_MONET = booleanPreferencesKey("miuix_monet")
+private val KEY_PAGE_SCALE = floatPreferencesKey("page_scale")
+private val KEY_BLUR = booleanPreferencesKey("enable_blur")
+private val KEY_FLOATING_BAR = booleanPreferencesKey("enable_floating_bottom_bar")
+private val KEY_FLOATING_BAR_BLUR = booleanPreferencesKey("enable_floating_bottom_bar_blur")
+private val KEY_NAV_BADGE = booleanPreferencesKey("enable_navigation_badge")
+private val KEY_PREDICTIVE_BACK = booleanPreferencesKey("enable_predictive_back")
+private val KEY_SWIPE_DISMISS = booleanPreferencesKey("enable_swipe_dismiss")
+private val KEY_PAGER_MODE = intPreferencesKey("pager_interception_mode")
+private val KEY_KEEP_ALIVE = booleanPreferencesKey("shizuku_keep_alive")

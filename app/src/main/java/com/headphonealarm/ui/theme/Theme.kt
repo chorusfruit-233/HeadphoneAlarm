@@ -9,17 +9,18 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -30,29 +31,30 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowInsetsControllerCompat
-import com.headphonealarm.data.AccentSource
 import com.headphonealarm.data.AppearanceSettings
-import com.headphonealarm.data.ColorMode
 import com.headphonealarm.data.InterfaceStyle
-import com.headphonealarm.data.supports2025
-import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.ktx.animateColorScheme
-import com.materialkolor.rememberDynamicColorScheme
+import top.yukonga.miuix.kmp.theme.LocalContentColor as LocalMiuixContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.darkColorScheme as miuixDarkColors
 import top.yukonga.miuix.kmp.theme.lightColorScheme as miuixLightColors
 import kotlin.math.cos
 import kotlin.math.sin
 
-val LocalInterfaceStyle = staticCompositionLocalOf { InterfaceStyle.MATERIAL }
+val LocalInterfaceStyle = staticCompositionLocalOf { InterfaceStyle.MIUIX }
+val LocalEnableBlur = staticCompositionLocalOf { false }
 val LocalClassicTheme = staticCompositionLocalOf { false }
+
+private val MaterialShapes = Shapes()
+private val MaterialTypography = Typography()
 
 private val AppShapes = Shapes(
     extraSmall = RoundedCornerShape(10.dp),
@@ -86,6 +88,7 @@ private val MiuixTypography = AppTypography.copy(
     bodyLarge = AppTypography.bodyLarge.copy(letterSpacing = 0.sp)
 )
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HeadphoneAlarmTheme(
     appearance: AppearanceSettings,
@@ -94,25 +97,24 @@ fun HeadphoneAlarmTheme(
     val legacy = appearance.legacyTheme
     val classicBackdrop = legacy?.let(::backdropFor)
     val systemDark = isSystemInDarkTheme()
-    val dark = classicBackdrop?.let { !it.isLight } ?: when (appearance.colorMode) {
-        ColorMode.SYSTEM -> systemDark
-        ColorMode.LIGHT -> false
-        ColorMode.DARK, ColorMode.AMOLED -> true
-    }
+    val dark = classicBackdrop?.let { !it.isLight } ?: appearance.colorMode.isDark(systemDark)
     val miuix = appearance.interfaceStyle == InterfaceStyle.MIUIX
-    val amoled = legacy == null && appearance.colorMode == ColorMode.AMOLED
-    val targetScheme = if (legacy == null) {
-        modernColors(appearance, dark, amoled, miuix)
-    } else {
-        remember(legacy) { colorSchemeFor(legacy) }
+    val nativeMiuix = miuix && !appearance.miuixMonet && legacy == null
+    val baseMiuixColors = remember(dark) { if (dark) miuixDarkColors() else miuixLightColors() }
+    val targetScheme = when {
+        legacy != null -> remember(legacy) { colorSchemeFor(legacy) }
+        nativeMiuix -> remember(baseMiuixColors, dark) { baseMiuixColors.materialColors(dark) }
+        else -> rememberPaletteColors(
+            keyColor = appearance.keyColor,
+            isDark = dark,
+            isAmoled = appearance.usesAmoledSurfaces,
+            style = appearance.paletteStyle,
+            spec = appearance.colorSpec
+        )
     }
     val scheme = animateColorScheme(targetScheme)
-    val backdrop = classicBackdrop ?: remember(scheme, dark, miuix) {
-        val stops = if (miuix) {
-            listOf(scheme.background, scheme.background)
-        } else {
-            listOf(scheme.surfaceContainerLowest, scheme.background)
-        }
+    val backdrop = classicBackdrop ?: remember(scheme.background, dark) {
+        val stops = listOf(scheme.background, scheme.background)
         AppBackdrop(stops, emptyList(), stops, Decoration.NONE, isLight = !dark)
     }
 
@@ -126,91 +128,35 @@ fun HeadphoneAlarmTheme(
         }
     }
 
-    val miuixColors = remember(scheme, dark) {
-        val base = if (dark) miuixDarkColors() else miuixLightColors()
-        base.copy(
-            primary = scheme.primary,
-            onPrimary = scheme.onPrimary,
-            primaryVariant = scheme.primary,
-            onPrimaryVariant = scheme.onPrimary,
-            primaryContainer = scheme.primaryContainer,
-            onPrimaryContainer = scheme.onPrimaryContainer,
-            secondary = scheme.secondaryContainer,
-            onSecondary = scheme.onSecondaryContainer,
-            tertiaryContainer = scheme.tertiaryContainer,
-            onTertiaryContainer = scheme.onTertiaryContainer,
-            background = scheme.background,
-            onBackground = scheme.onBackground,
-            onBackgroundVariant = scheme.onSurfaceVariant,
-            surface = scheme.surfaceContainer,
-            surfaceVariant = scheme.surfaceContainerHigh,
-            onSurface = scheme.onSurface,
-            onSurfaceSecondary = scheme.onSurfaceVariant,
-            onSurfaceVariantSummary = scheme.onSurfaceVariant,
-            onSurfaceVariantActions = scheme.onSurfaceVariant,
-            surfaceContainer = scheme.surfaceContainer,
-            onSurfaceContainer = scheme.onSurface,
-            surfaceContainerHigh = scheme.surfaceContainerHigh,
-            surfaceContainerHighest = scheme.surfaceContainerHighest,
-            outline = scheme.outline,
-            dividerLine = scheme.outlineVariant
-        )
+    val miuixColors = remember(baseMiuixColors, targetScheme, nativeMiuix) {
+        if (nativeMiuix) baseMiuixColors else targetScheme.asMiuixColors(baseMiuixColors)
     }
-
+    val systemDensity = LocalDensity.current
+    val appDensity = remember(systemDensity, appearance.pageScale) {
+        Density(systemDensity.density * appearance.pageScale, systemDensity.fontScale)
+    }
     CompositionLocalProvider(
         LocalAppBackdrop provides backdrop,
         LocalInterfaceStyle provides appearance.interfaceStyle,
-        LocalClassicTheme provides (legacy != null)
+        LocalClassicTheme provides (legacy != null),
+        LocalEnableBlur provides (appearance.enableBlur && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S),
+        LocalDensity provides appDensity
     ) {
-        // Keep both providers mounted so a style switch preserves navigation and editor state.
         MiuixTheme(colors = miuixColors) {
-            MaterialTheme(
+            val miuixIndication = LocalIndication.current
+            MaterialExpressiveTheme(
                 colorScheme = scheme,
-                shapes = if (miuix) MiuixShapes else AppShapes,
-                typography = if (miuix) MiuixTypography else AppTypography,
-                content = content
-            )
+                motionScheme = if (miuix || legacy != null) MotionScheme.standard() else MotionScheme.expressive(),
+                shapes = if (miuix) MiuixShapes else if (legacy != null) AppShapes else MaterialShapes,
+                typography = if (miuix) MiuixTypography else if (legacy != null) AppTypography else MaterialTypography
+            ) {
+                CompositionLocalProvider(
+                    LocalMiuixContentColor provides miuixColors.onBackground,
+                    LocalIndication provides if (miuix) miuixIndication else LocalIndication.current,
+                    content = content
+                )
+            }
         }
-    }
-}
-
-@Composable
-private fun modernColors(
-    appearance: AppearanceSettings,
-    dark: Boolean,
-    amoled: Boolean,
-    miuix: Boolean
-): ColorScheme {
-    val context = LocalContext.current
-    val configuration = LocalConfiguration.current
-    val defaultSeed = if (miuix) Color(0xFF3482FF) else Color(0xFF6750A4)
-    val seed = when (appearance.accentSource) {
-        AccentSource.DEFAULT -> defaultSeed
-        AccentSource.CUSTOM -> Color(appearance.accentColor)
-        AccentSource.WALLPAPER -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            remember(context, configuration) { dynamicLightColorScheme(context).primary }
-        } else {
-            defaultSeed
-        }
-    }
-    val scheme = rememberDynamicColorScheme(
-        seedColor = seed,
-        isDark = dark,
-        isAmoled = amoled,
-        style = appearance.paletteStyle,
-        specVersion = if (appearance.paletteStyle.supports2025) {
-            appearance.colorSpec
-        } else {
-            ColorSpec.SpecVersion.SPEC_2021
-        }
-    )
-    return remember(scheme, amoled) {
-        if (amoled) scheme.copy(
-            background = Color.Black,
-            surface = Color.Black,
-            surfaceDim = Color.Black,
-            surfaceContainerLowest = Color.Black
-        ) else scheme
     }
 }
 

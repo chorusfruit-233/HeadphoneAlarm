@@ -27,7 +27,6 @@ import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.PlayArrow
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Speaker
 import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material.icons.outlined.Timer
@@ -48,6 +47,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,6 +70,7 @@ import com.headphonealarm.audio.HeadphoneAlarmPlayer
 import com.headphonealarm.audio.HeadphoneDetector
 import com.headphonealarm.data.AlarmItem
 import com.headphonealarm.data.NoHeadphoneAction
+import com.headphonealarm.ui.LocalHomeBottomPadding
 import com.headphonealarm.ui.components.GlassCard
 import com.headphonealarm.ui.components.SectionTitle
 import com.headphonealarm.ui.components.StatusPill
@@ -98,7 +99,7 @@ import java.util.Calendar
 fun AlarmListScreen(
     onAddAlarm: () -> Unit,
     onEditAlarm: (Long) -> Unit,
-    onOpenSettings: () -> Unit,
+    isCurrentPage: Boolean,
     viewModel: AlarmListViewModel = viewModel()
 ) {
     val context = LocalContext.current
@@ -123,7 +124,10 @@ fun AlarmListScreen(
         ActivityResultContracts.RequestPermission()
     ) { refreshKey++ }
 
-    LaunchedEffect(Unit) {
+    var notificationPromptChecked by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(isCurrentPage) {
+        if (!isCurrentPage || notificationPromptChecked) return@LaunchedEffect
+        notificationPromptChecked = true
         if (!AlarmPermissions.hasNotificationPermission(context)) {
             val permissions = AlarmPermissions.runtimePermissions()
             if (permissions.isNotEmpty()) {
@@ -133,9 +137,9 @@ fun AlarmListScreen(
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
+    DisposableEffect(lifecycleOwner, isCurrentPage) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
+            if (event == Lifecycle.Event.ON_RESUME && isCurrentPage) {
                 refreshKey++
                 viewModel.rescheduleAll()
             }
@@ -148,12 +152,14 @@ fun AlarmListScreen(
     val scheduledAlarms = alarms.filter { it.nextScheduledTime(now) != null }
     val nextTrigger = scheduledAlarms.mapNotNull { it.nextScheduledTime(now) }.minOrNull()
 
+    val bottomBarPadding = LocalHomeBottomPadding.current
     Scaffold(
         containerColor = Color.Transparent,
         floatingActionButton = {
             if (loaded) {
                 ExtendedFloatingActionButton(
                     onClick = onAddAlarm,
+                    modifier = Modifier.padding(bottom = bottomBarPadding),
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                     icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
@@ -170,11 +176,11 @@ fun AlarmListScreen(
                 start = 20.dp,
                 end = 20.dp,
                 top = 24.dp,
-                bottom = scaffoldPadding.calculateBottomPadding() + 96.dp
+                bottom = scaffoldPadding.calculateBottomPadding() + bottomBarPadding + 96.dp
             ),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            item { Header(headphone, deviceSummary, onOpenSettings) }
+            item { Header(headphone, deviceSummary) }
 
             when (val current = alarmState) {
                 is AlarmLoadState.Ready -> item {
@@ -288,20 +294,14 @@ fun AlarmListScreen(
 }
 
 @Composable
-private fun Header(headphoneConnected: Boolean, deviceSummary: String, onOpenSettings: () -> Unit) {
+private fun Header(headphoneConnected: Boolean, deviceSummary: String) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "闹钟",
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.displayLarge.copy(fontSize = 44.sp),
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.Bold
-            )
-            IconButton(onClick = onOpenSettings) {
-                Icon(Icons.Outlined.Settings, contentDescription = "设置", tint = MaterialTheme.colorScheme.onSurface)
-            }
-        }
+        Text(
+            text = "闹钟",
+            style = MaterialTheme.typography.displayLarge.copy(fontSize = 44.sp),
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Bold
+        )
         Spacer(Modifier.height(6.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,

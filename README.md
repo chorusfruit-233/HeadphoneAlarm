@@ -72,9 +72,10 @@ Android 的 `setPreferredDevice` 只是「偏好」而非「强制」，系统�
 - 自定义铃声导入：通过 SAF 选择音频，立即复制到应用私有目录，规避 `content://` 授权失效与云盘文件不可随机读取两类播放失败
 - 贪睡时长、响铃自动超时关闭（超时自动停止，避免无人处理时长时间响铃）
 - 开关状态一键切换，响铃前可试听
-- 「设置 → 外观与主题」支持 Material 3 和 Miuix 界面、跟随系统 / 浅色 / 深色 / 纯黑、壁纸取色、预设主题色、调色板与实时预览
+- 在底部「设置」的「界面风格」中切换 Miuix 和 Material。打开「主题设置」可查看手机预览、切换明暗、选择主题色并调整界面缩放
+- Miuix 可开启 Monet 颜色和悬浮底栏。Material 可横向浏览配色圆盘，并选择纯黑模式
 - 可继续使用极光、赛博朋克、安卓原生、动漫、海洋、森林六套经典主题
-- 「设置 → 后台保活」支持 Shizuku 强制保活和电池优化豁免
+- 「设置 → 后台保活」分别提供 Shizuku 强制保活和电池优化豁免开关
 - 全屏响铃界面：锁屏直接展示，显示音量渐强进度条，提供贪睡与关闭按钮
 - 开机 / 应用更新 / 系统时间或时区变化后自动重排全部闹钟
 - 「使用最大音量」按钮：响铃时用户点按后重新抬升媒体音量（Android 的媒体音量安全保护会监听耳机实际输出分贝并自动压低，App 无法用 API 绕过，只能在用户真实点击后重新抬升）
@@ -157,7 +158,7 @@ python tools/generate_tones.py
 ### Shizuku 后台保活
 
 1. 安装并启动 Shizuku v12 或更新版本。非 root 设备重启后需重新启动 Shizuku。[Shizuku 使用指南](https://shizuku.rikka.app/guide/setup/)
-2. 在「设置 → 后台保活」授权 Shizuku，打开「强制保活」，等待状态显示为「守护运行中」。
+2. 在「设置 → 后台保活」点「Shizuku」完成授权，打开「强制保活」，等待状态显示为「守护运行中」。
 3. 可用通知里的「停止保活」或设置中的开关停止守护。「电池优化豁免」可独立设置。
 
 应用进程被系统回收后，Shizuku 守护服务会启动耳机闹钟的前台服务并恢复排程。若在系统中主动停止应用，重新打开耳机闹钟后可恢复守护。Shizuku 停止运行时，守护也会停止。
@@ -189,4 +190,4 @@ python tools/generate_tones.py
 
 基于 [Apache License 2.0](LICENSE) 开源，详见 [NOTICE](NOTICE)。
 
-外观与主题设置的交互参考 KernelSU Manager，并通过 Miuix 和 MaterialKolor 在耳机闹钟中实现。[KernelSU Manager](https://github.com/tiann/KernelSU/tree/2a60b2893b8d0d885d1ceff2287d8ad854f0e0f4/manager/app/src/main/java/me/weishu/kernelsu/ui/theme) [Miuix](https://github.com/compose-miuix-ui/miuix) [MaterialKolor](https://github.com/jordond/MaterialKolor)
+设置首页、两套主题页和实时预览参照 KernelSU Manager v3.3.1 的界面实现。导航目的地和保活设置对应耳机闹钟的功能。[KernelSU 设置首页](https://github.com/tiann/KernelSU/tree/v3.3.1/manager/app/src/main/java/me/weishu/kernelsu/ui/screen/settings) · [KernelSU 主题设置](https://github.com/tiann/KernelSU/tree/v3.3.1/manager/app/src/main/java/me/weishu/kernelsu/ui/screen/colorpalette) · [KernelSU 主题实现](https://github.com/tiann/KernelSU/tree/v3.3.1/manager/app/src/main/java/me/weishu/kernelsu/ui/theme) · [Miuix](https://github.com/compose-miuix-ui/miuix) [MaterialKolor](https://github.com/jordond/MaterialKolor)
